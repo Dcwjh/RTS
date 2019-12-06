@@ -5,10 +5,8 @@
 package MyRTS;
 
 
- import ai.abstraction.MyRobot;
  import ai.abstraction.pathfinding.AStarPathFinding;
- import ai.abstraction.pathfinding.BFSPathFinding;
- import ai.competition.tiamat.Tiamat;
+ import ai.abstraction.pathfinding.GreedyPathFinding;
  import ai.core.AI;
  import gui.PhysicalGameStatePanel;
  import rts.GameState;
@@ -25,18 +23,18 @@ package MyRTS;
  public class GameVisualSimulationTest {
      public static void main(String args[]) throws Exception {
          UnitTypeTable utt = new UnitTypeTable();
-         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\itsNotSafe.xml", utt);
+         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\16x16\\basesWorkers16x16.xml", utt);
  //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
          GameState gs = new GameState(pgs, utt);
          int MAXCYCLES = 9000;
-         int PERIOD = 20;
+         int PERIOD = 10;
          boolean gameover = false;
 
-         AI ai1 = new MyRobot(utt, new AStarPathFinding());
+         AI ai1 = new MyWorkRushPlus(utt,new GreedyPathFinding());
 
          //经过测试BFSPathFinding()基地距离远更厉害一些
-         AI ai2 = new BoJingAI(utt,new BFSPathFinding());
+         AI ai2 = new BoJingAI(utt,new AStarPathFinding());
 
          JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
  //        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);

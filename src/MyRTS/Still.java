@@ -28,7 +28,7 @@ import java.util.Random;
  *
  * @author santi
  */
-public class WorkerRush extends AbstractionLayerAI {
+public class Still extends AbstractionLayerAI {
     Random r = new Random();
     protected UnitTypeTable utt;
     UnitType workerType;
@@ -38,12 +38,12 @@ public class WorkerRush extends AbstractionLayerAI {
     // If we have more than 1 "Worker": send the extra workers to attack to the nearest enemy unit
     // If we have a base: train workers non-stop
     // If we have a worker: do this if needed: build base, harvest resources
-    public WorkerRush(UnitTypeTable a_utt) {
+    public Still(UnitTypeTable a_utt) {
         this(a_utt, new AStarPathFinding());
     }
 
         
-    public WorkerRush(UnitTypeTable a_utt, PathFinding a_pf) {
+    public Still(UnitTypeTable a_utt, PathFinding a_pf) {
         super(a_pf);
         reset(a_utt);
     }
@@ -63,7 +63,7 @@ public class WorkerRush extends AbstractionLayerAI {
     
     
     public AI clone() {
-        return new WorkerRush(utt, pf);
+        return new Still(utt, pf);
     }
     
     public PlayerAction getAction(int player, GameState gs) {
@@ -82,13 +82,13 @@ public class WorkerRush extends AbstractionLayerAI {
         }
 
         // behavior of melee units:
-        for(Unit u:pgs.getUnits()) {
-            if (u.getType().canAttack && !u.getType().canHarvest && 
-                u.getPlayer() == player && 
-                gs.getActionAssignment(u)==null) {
-                meleeUnitBehavior(u,p,gs);
-            }        
-        }
+//        for(Unit u:pgs.getUnits()) {
+//            if (u.getType().canAttack && !u.getType().canHarvest &&
+//                u.getPlayer() == player &&
+//                gs.getActionAssignment(u)==null) {
+//                meleeUnitBehavior(u,p,gs);
+//            }
+//        }
 
         // behavior of workers:
         List<Unit> workers = new LinkedList<Unit>();
@@ -188,7 +188,7 @@ public class WorkerRush extends AbstractionLayerAI {
             }
         }
         
-        for(Unit u:freeWorkers) meleeUnitBehavior(u, p, gs);
+//        for(Unit u:freeWorkers) meleeUnitBehavior(u, p, gs);
         
     }
     
