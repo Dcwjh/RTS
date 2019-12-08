@@ -30,7 +30,8 @@ public class MyWorkRushPlus extends AbstractionLayerAI {
 
     private static boolean flag = false; //判断最终工兵的进攻行为
     private static boolean CarryNoResource = false;
-
+    private static boolean once = true;
+    private static int count = 0;
     UnitTypeTable m_utt = null;
     Random r = new Random();
     UnitType workerType;
@@ -69,76 +70,73 @@ public class MyWorkRushPlus extends AbstractionLayerAI {
     public PlayerAction getAction(int player, GameState gs) {
         PhysicalGameState pgs = gs.getPhysicalGameState();
         Player p = gs.getPlayer(player);
-        workerRush(p, gs);
+
+             workerRush(p, gs);
+
         return translateActions(player, gs);
     }
 
     public void workerRush(Player p, GameState gs) {
         PhysicalGameState pgs = gs.getPhysicalGameState();
+        List<Unit> freeWorker = new LinkedList<>();
+
 
         List<Unit> harvestWorker = new LinkedList<>();
         baseBehavior(p, gs);
+        for (Unit u : pgs.getUnits()) {
+            if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
+                freeWorker.add(u);
+            }
+        }
+
+
+        while(harvestWorker.size() < 1){
+            if(!freeWorker.isEmpty())
+                harvestWorker.add(freeWorker.remove(0));
+            else
+                break;
+        }
+
         int number = 0;
         Unit base = null;
         for (Unit u : pgs.getUnits()) {
             if (u.getType() == baseType && u.getPlayer() == p.getID()) {
                 base = u;
-
+//                System.out.println("不为空");
             }
+        }
+        if(base == null) {
+            System.out.println("我方输了");
+            return;
         }
 
         for (Unit u : pgs.getUnits()) {
-            //判断资源的时候不能带选手ID
-            assert base != null;
-            if (u.getType() == resourceType &&
+            if (pgs.getHeight() <= 16 && u.getType() == resourceType &&
                     (Math.abs(u.getX() - base.getX()) + Math.abs(u.getY() - base.getY())) <= 5) {
                 number++;
+            }
+            else if(u.getType() == resourceType){
+                number ++;
             }
         }
         if (number == 0)
             flag = true; //基地附近没有资源标志
 
-        if (flag) {  //没有兵携带资源,则carryResource = true
-            for (Unit u : pgs.getUnits()) {
-                if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
-                    UnitActionAssignment uaa = gs.getActionAssignment(u);
-                    assert base != null;
-                    if (uaa != null && uaa.action.getType() == UnitAction.TYPE_NONE && (Math.abs(u.getX() - base.getX()) + Math.abs(u.getY() - base.getY())) <= 3) {
-                        CarryNoResource = true;
-                    }
-                }
-            }
-        }
-
-        System.out.println("有无资源标志：" + flag);
-        System.out.println("小兵是否携带资源" + CarryNoResource);
-
         if (!flag) { //有资源
-            for (Unit u : pgs.getUnits()) {
-                if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
-                    if (harvestWorker.size() < 1) {
-                        harvestWorker.add(u);
-                    } else {
-                        meleeBehavior(u, p, gs);
-                    }
-                }
+            for (Unit u : freeWorker) {
+                meleeBehavior(u, p, gs);
             }
             harvestWorkerGroup(harvestWorker, p, gs);
-        } else if (!CarryNoResource) { //没资源，且有一个小兵携带资源，放在基地
-            for (Unit u : pgs.getUnits()) {
-                if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
-                    UnitActionAssignment uaa = gs.getActionAssignment(u);
-                    if (uaa != null && uaa.action.getType() != UnitAction.TYPE_RETURN)
-                        meleeBehavior(u, p, gs);
-                    else
-                        harvest(u, u, base);
+        } else {  //无资源
+            for(Unit u : pgs.getUnits()){
+                if(u.getType().canAttack && p.getID() == u.getPlayer()){
+                    if(u.getResources()>0)
+                        harvest(u,u,base);
+                    else{
+                        meleeBehavior(u,p,gs);
+                    }
                 }
-            }
-        } else { //无资源，且小兵没有携带资源
-            for (Unit u : pgs.getUnits()) {
-                if (u.getType().canAttack && u.getPlayer() == p.getID()) {
-                    meleeBehavior(u, p, gs);
-                }
+
             }
         }
     }
@@ -200,7 +198,7 @@ public class MyWorkRushPlus extends AbstractionLayerAI {
                 } else {
                     harvest(worker, closestResource, closestBase);
                 }
-            } else if (p.getResources() != 0 && closestBase != null) {
+            } else if (closestBase != null) {
                 harvest(worker, worker, closestBase);
             } else {
                 meleeBehavior(worker, p, gs);
