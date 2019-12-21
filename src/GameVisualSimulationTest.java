@@ -2,15 +2,12 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package MyRTS;
 
 
- import ai.abstraction.LightDefense;
- import ai.abstraction.LightRushplus;
- import ai.abstraction.WorkerDefense;
+
+ import ai.abstraction.*;
  import ai.abstraction.pathfinding.AStarPathFinding;
- import ai.abstraction.pathfinding.GreedyPathFinding;
- import ai.competition.tiamat.Tiamat;
+
  import ai.core.AI;
  import gui.PhysicalGameStatePanel;
  import rts.GameState;
@@ -29,8 +26,8 @@ package MyRTS;
          UnitTypeTable utt = new UnitTypeTable();
 //         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\8x8\\bases8x8.xml", utt);
 
-         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\16x16\\basesWorkers16x16.xml", utt);
-//         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\BWDistantResources32x32.xml", utt);
+//         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\16x16\\basesWorkers16x16A.xml", utt);
+         PhysicalGameState pgs = PhysicalGameState.load("C:\\Users\\50339\\Documents\\microrts-master_new\\microrts-master\\maps\\BWDistantResources32x32.xml", utt);
 
          //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
@@ -40,10 +37,10 @@ package MyRTS;
          boolean gameover = false;
 
 //         AI ai1 = new MyWorkRushPlus(utt,new GreedyPathFinding());
-         AI ai1 = new LightRushplus(utt,new AStarPathFinding());
+         AI ai1 = new HeavyDefense(utt);
 
          //经过测试BFSPathFinding()基地距离远更厉害一些
-         AI ai2 = new BoJingAI(utt,new AStarPathFinding());
+         AI ai2 = new BronzeAI_25(utt,new AStarPathFinding());
 
          JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
  //        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);

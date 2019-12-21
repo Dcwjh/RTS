@@ -2,7 +2,6 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package MyRTS;
 
 import ai.abstraction.AbstractAction;
 import ai.abstraction.AbstractionLayerAI;

@@ -1,10 +1,9 @@
-package MyRTS;
 /**
  * @Description TODO
  * @Author Jianhai Wang
  * @ClassName MyWorkerRush
  * @Date 2019/11/14 15:57
- * @Version 1.0
+ * @Version 3.0  新版本
  */
 
 import java.util.ArrayList;
@@ -26,26 +25,15 @@ import rts.units.UnitType;
 import rts.units.UnitTypeTable;
 import rts.UnitActionAssignment;
 
-
-/*
-based: worker,
-barracks: light, heavy, ranged
-worker: base, barracks
- */
-public class BoJingAI extends AbstractionLayerAI {
-    public static final int SMALL = 8;
-    public static final int MIDDLE = 24;
-    public static final int BIG = 32;
-    public static final int WORKER_SMALL = 1; //16*16以下
-    public static final int WORKER_MIDDLE = 2;
-    public static final int WORKER_BIG = 4;
-    public static final int WORKER_MORE = 8;
+public class BronzeAI_25 extends AbstractionLayerAI {
     private static boolean flag = false; //发起进攻的信号
     private static int DEFENSEDIS = 1;
 
     private static int TIME = 0;
     private static int anInt = 10;  //决定发起进攻的时间长度，越大积累的兵就越多。越小发起总进攻的时间就越快
     //进攻的队列
+
+    private static boolean first = true;
 
 
     UnitTypeTable m_utt = null;
@@ -60,18 +48,20 @@ public class BoJingAI extends AbstractionLayerAI {
 
 
     // This is the default constructor that microRTS will call:
-    public BoJingAI(UnitTypeTable utt) {
-        this(utt, new BFSPathFinding());
+    public BronzeAI_25(UnitTypeTable utt) {
+        this(utt, new AStarPathFinding());
+        System.out.println("Team25");
     }
 
-    public BoJingAI(UnitTypeTable utt, PathFinding pf) {
+    public BronzeAI_25(UnitTypeTable utt, PathFinding pf) {
         super(pf);    // # set "time budget" and "iteration budget"
         reset(utt);
+        System.out.println("Team25");
     }
 
     // This will be called by microRTS when it wants to create new instances of this bot (e.g., to play multiple games).
     public AI clone() {
-        return new BoJingAI(m_utt);
+        return new BronzeAI_25(m_utt);
     }
 
     // This will be called once at the beginning of each new game:    
@@ -86,16 +76,10 @@ public class BoJingAI extends AbstractionLayerAI {
         resourceType = m_utt.getUnitType("Resource");
     }
 
-
-    // Called by microRTS at each game cycle.
-    // Returns the action the bot wants to execute.
     public PlayerAction getAction(int player, GameState gs) {
         PhysicalGameState pgs = gs.getPhysicalGameState();
         Player p = gs.getPlayer(player);
-        // TODO  改进：根据时间选择策略， 思想：
-        //采用workRush的基础是把对方扼杀在摇篮里,根据小地图最优，所以在16*16以下的地图中，都采用workRushPlus
 
-        int produce = barracksType.produceTime + lightType.produceTime - workerType.produceTime;
         List<Unit> myBases = new ArrayList<>();
         List<Unit> enemyBases = new ArrayList<>();
         int minDisBases = Integer.MAX_VALUE;
@@ -108,175 +92,203 @@ public class BoJingAI extends AbstractionLayerAI {
                 }
             }
         }
-        //一般都是一个基地
+
         for (Unit mybase : myBases) {
             for (Unit enemyBase : enemyBases) {
                 minDisBases = Math.min(minDisBases, Math.abs(mybase.getX() - enemyBase.getX()) + Math.abs(mybase.getY() - enemyBase.getY()));
             }
         }
-
         int num = 0;
-        int enemynum = 0;
         for (Unit u : pgs.getUnits()) {
             if (u.getType() == barracksType) {
                 if (u.getPlayer() == player) {
                     num++;
                 }
-                else
-                    enemynum++;
             }
 
         }
+//        只测试32*32
+        moveBase(p,gs);
 
-        //策略主要思想：
-        //策略一：基地距离近，或者小地图都采用（该进workerRush）
-        if (pgs.getHeight() < 16 && minDisBases >= 4) {
-            workerRush(p, gs);
-        }
-        else if(pgs.getWidth() == 16)
-            if(num == 0)
-                unitsRush(p, gs, 2, 6, 0, 3, 2, false);
-            else
-                unitsRush(p, gs, 0, 6, 0, 3, 2, false);
-        //策略二：采用ranged 对战 worker策略 直接攻击，不屯兵
-        else if( pgs.getHeight() < 32)
-            unitsRush(p, gs, 4, 0, 0, 3, 3, true);
-
-        else if (pgs.getHeight() >= 32 && pgs.getHeight() < 64) {
-            if(num == 0)
-                unitsRush(p, gs, 4, 6, 1, 3, WORKER_BIG, false);
-            else if(enemynum == 0)
-                unitsRush(p, gs, 0, 6, 1, 3, WORKER_BIG, true);
-            else
-                unitsRush(p, gs, 0, 6, 1, 3, WORKER_BIG, false);
-
-        }
-        //策略三：采用混合策略，调参数
-        else if (pgs.getHeight() >= 64 && pgs.getHeight() < 128) {
-            unitsRush(p, gs, 0, 4, 1, 6, 6, false);
-        } else if (pgs.getHeight() >= 128) {
-            unitsRush(p, gs, 0, 10, 5, 12, WORKER_MORE, false);
-        }
 
         return translateActions(player, gs); //返回操作
     }
 
-
-    //---------------------------策略1：基于改进workerRush策略， 调整情况如函数所示----------------------------
-    public void workerRush(Player p, GameState gs) {
+    public void moveBase(Player p, GameState gs){
         PhysicalGameState pgs = gs.getPhysicalGameState();
-        List<Unit> freeWorker = new LinkedList<>();
-
-
-        List<Unit> harvestWorker = new LinkedList<>();
-        baseBehavior(p, gs);
-        for (Unit u : pgs.getUnits()) {
-            if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
-                freeWorker.add(u);
-            }
-        }
-
-
-        while(harvestWorker.size() < 1){
-            if(!freeWorker.isEmpty())
-                harvestWorker.add(freeWorker.remove(0));
-            else
-                break;
-        }
-
-        int number = 0;
-        Unit base = null;
-        for (Unit u : pgs.getUnits()) {
-            if (u.getType() == baseType && u.getPlayer() == p.getID()) {
-                base = u;
-            }
-        }
-
-        if(base == null) {
-            System.out.println("我方输了");
-            return;
-        }
-
-        for (Unit u : pgs.getUnits()) {
-            assert base != null;
-            if (u.getType() == resourceType &&
-                    (Math.abs(u.getX() - base.getX()) + Math.abs(u.getY() - base.getY())) <= 5) {
-                number++;
-            }
-        }
-        if (number == 0)
-            flag = true; //基地附近没有资源标志
-
-
-
-        if (!flag) { //有资源
-            for (Unit u : freeWorker) {
-                meleeBehavior(u, p, gs);
-            }
-            harvestWorkerGroup(harvestWorker, p, gs);
-        } else {  //无资源
-            for(Unit u : pgs.getUnits()){
-                if(u.getType().canAttack && p.getID() == u.getPlayer()){
-                    if(u.getResources()>0)
-                        harvest(u,u,base);
-                    else{
-                        meleeBehavior(u,p,gs);
-                    }
-                }
-
-            }
-        }
-    }
-
-    //改方法已弃用
-    public void Old_workerRush(Player p, GameState gs) {
-        PhysicalGameState pgs = gs.getPhysicalGameState();
-        //找到己方基地生产工兵
-        int number = 0;
-        Unit base = null;
-        boolean lock = false;
-        List<Unit> harvestWorker = new LinkedList<Unit>();
-        for(Unit u: pgs.getUnits()){
-            if(u.getType() == baseType && u.getPlayer() == p.getID()){
-                base = u;
-                break;
-            }
-        }
-
-
-        //基地被包围 TODO maps\letMeOut.xml 这个地图资源和基地都会被包围。 目前只能解决基地被包围的情况(注释代码去掉就是基地被包围的情况), 资源被包围不能解决
-//        assert base != null;
-//        if(base.getX()<=0 ||  pgs.getTerrain(base.getX() - 1,base.getY())==PhysicalGameState.TERRAIN_WALL || !gs.free(base.getX() - 1,base.getY())  ) number++;
-//        if(base.getY() <= 0 || pgs.getTerrain(base.getX(),base.getY()-1)==PhysicalGameState.TERRAIN_WALL ||!gs.free(base.getX(),base.getY()-1)) number++;
-//        if(base.getX() + 1>= pgs.getWidth() || pgs.getTerrain(base.getX() + 1,base.getY())==PhysicalGameState.TERRAIN_WALL ||!gs.free(base.getX() + 1,base.getY())) number ++;
-//        if(base.getY() + 1 >= pgs.getHeight() ||  pgs.getTerrain(base.getX(),base.getY() + 1)==PhysicalGameState.TERRAIN_WALL ||!gs.free(base.getX(),base.getY() + 1)) number ++;
-//        if(number >= 3) {
-//            lock = true;
-//        }
-
-//        if(lock){
-//            for (Unit u : pgs.getUnits()) {
-//                if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
-//                    harvestWorkerBehavior(u, p, gs);
-//                }
-//            }
-//        }
-//        //正常模式
-//        else {
+        int workerNumber = countUnits(p,gs,workerType);
+        int nbarrack = countUnits(p,gs,barracksType);
+        if(workerNumber < 2 && nbarrack == 0)
             baseBehavior(p,gs);
-            for (Unit u : pgs.getUnits()) {
-                if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
-                    if (harvestWorker.size() < WORKER_SMALL) {
-                        harvestWorker.add(u);
+        else if(workerNumber < 2)
+            baseBehavior(p,gs);
+        List<Unit> freeWorker = countUnitsList(p,gs,workerType);
+        List<Unit> harvestWorker = new LinkedList<>();
+        while(!freeWorker.isEmpty() && harvestWorker.size() < 2){
+                harvestWorker.add(freeWorker.remove(0));
+        }
+
+        List<Unit> myBases = new ArrayList<>();
+        Unit base = null;
+        List<Unit> enemyBases = new ArrayList<>();
+        for (Unit u : pgs.getUnits()) {
+            if (u.getType() == baseType) {
+                if (u.getPlayer() == p.getID()) {
+                    base = u;
+                    myBases.add(u);
+                } else {
+                    enemyBases.add(u);
+                }
+            }
+        }
+
+//        System.out.println("PlaryID:" + p.getID() + "的基地坐标为:" + base.getX() + ", " + base.getY() );
+
+        List<Integer> reservedPositions = new LinkedList<Integer>();
+        int locationX = 0;
+        int locationY = 0;
+        if(nbarrack == 0){
+            if (p.getResources() >= barracksType.cost && !harvestWorker.isEmpty()) {
+                Unit u = harvestWorker.remove(0);
+                if (base!=null) {
+//                    System.out.println("基地位置" + base.getX() + ", " + base.getY());
+                    if(p.getID() == 1){
+                        locationX = base.getX() + 2;
+                        locationY = base.getY() - 2 ;
+                    } else{
+                        locationX = base.getX();
+                        locationY = base.getY() + 4 ;
+                    }
+//                    if(gs.free(locationX,locationY)) {
+                        buildIfNotAlreadyBuilding(u, barracksType, locationX, locationY, reservedPositions, p, pgs);
+//                    }else{
+//                        buildIfNotAlreadyBuilding(u, barracksType, u.getX(), u.getY(), reservedPositions, p, pgs);
+//                     }
+                }
+            }
+        }
+
+        //获取最近的资源矿
+        List<Unit> resources = new LinkedList<>();
+        Unit resourceClose = null;
+        int nbase = countUnits(p,gs, baseType);
+        for(Unit u: gs.getUnits()){
+            if(u.getType() == resourceType)
+                resources.add(u);
+        }
+
+        int distanceBB = 100;
+        for(Unit res: resources){
+            for(Unit ba: myBases){
+                int d = Math.abs(res.getX() - ba.getX()) + Math.abs(res.getY() - ba.getY());
+                if( d < distanceBB) {
+                    resourceClose = res;
+                    distanceBB = d;
+                }
+            }
+        }
+        if(resourceClose!=null) {
+//            System.out.println("基地位置" + resourceClose.getX() + "," + resourceClose.getY());
+        }
+
+        if(nbase == 0 || distanceBB > 8)
+        {
+            if (p.getResources() >= baseType.cost && !harvestWorker.isEmpty()) {
+                Unit u = harvestWorker.remove(0);
+                if (resourceClose != null) {
+//                    System.out.println("基地位置" + base.getX() + ", " + base.getY());
+                    if (p.getID() == 1) {
+                        locationX = resourceClose.getX();
+                        locationY = resourceClose.getY() + 2;
                     } else {
-                        meleeBehavior(u, p, gs);  //直接去攻击
+                        locationX = resourceClose.getX() + 2;
+                        locationY = resourceClose.getY();
+                    }
+//                    if(gs.free(locationX,locationY)) {
+                    buildIfNotAlreadyBuilding(u, baseType, locationX, locationY, reservedPositions, p, pgs);
+//                    }else{
+//                        buildIfNotAlreadyBuilding(u, barracksType, u.getX(), u.getY(), reservedPositions, p, pgs);
+//                     }
+                }
+                else
+                    buildIfNotAlreadyBuilding(u, baseType, u.getX(), u.getY(), reservedPositions, p, pgs);
+
+            }
+        }
+        harvestWorkerGroup(harvestWorker, p, gs);
+        for(Unit u: freeWorker)
+            meleeBehavior(u,p,gs);
+
+        barracksBehavior(p,gs,rangedType);
+
+        for(Unit u: gs.getUnits()){
+            if(u.getPlayer() == p.getID() && u.getType() == lightType)
+                defenseBehavior(u,p,gs);
+        }
+        int rangedNum = countUnits(p,gs, rangedType);
+        Unit ranged = null; //远程防御兵
+        Unit barr = null;
+        for(Unit u: gs.getUnits())
+            if(u.getType() == barracksType && p.getID() == u.getPlayer()){
+                barr = u;
+            }
+        if(rangedNum == 1){
+            for(Unit u: gs.getUnits()) {
+                if (u.getType() == rangedType && p.getID() == u.getPlayer()) {
+                    ranged = u;
+                    int unitX = 0;
+                    int unitY = 0;
+                    if (p.getID() == 1 && barr != null) {
+//                        System.out.println("hello" + barr.getX() + ", " + barr.getY());
+                        unitX = barr.getX() - 2;
+                        unitY = barr.getY();
+                    }
+                    UnitActionAssignment uaa = gs.getActionAssignment(ranged);
+                    if(uaa == null){
+                        move(ranged,unitX,unitY);
                     }
                 }
             }
-            harvestWorkerGroup(harvestWorker,p,gs);
+        }
+//        if(ranged != null  && (actions.get(ranged).completed(gs)|| gs.getUnitAction()))
+//        {
+//            defese(p,gs,ranged);
 //        }
+        if(ranged != null)
+        {
+            UnitActionAssignment uaa = gs.getActionAssignment(ranged);
+            if(uaa != null && uaa.action.getType() == UnitAction.TYPE_NONE)
+                defese(p,gs,ranged);
+
+        }
+
 
     }
+
+
+
+    //坚守岗位防御
+    public void defese(Player p, GameState gs, Unit u){
+        PhysicalGameState pgs = gs.getPhysicalGameState();
+        Unit closestEnemy = null;
+        int closestDistance = 0;
+        for (Unit u2 : pgs.getUnits()) {
+            if (u2.getPlayer() >= 0 && u2.getPlayer() != p.getID()) {
+                int d = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
+                if (closestEnemy == null || d < closestDistance) {
+                    closestEnemy = u2;
+                    closestDistance = d;
+                }
+            }
+        }
+        if (closestEnemy != null && (closestDistance <= u.getAttackRange())) {
+            attack(u, closestEnemy);
+        } else {
+            attack(u, null);
+        }
+    }
+
+
 
     //基地行为，只能生产工兵
     public void baseBehavior(Player p, GameState gs) {
@@ -419,9 +431,67 @@ public class BoJingAI extends AbstractionLayerAI {
             attack(u, null);
         }
     }
-    //-----------------------------------策略一结束--------------------------------
 
+    //---------------------------策略1：基于改进workerRush策略， 调整情况如函数所示----------------------------
+    public void workerRush(Player p, GameState gs) {
+        PhysicalGameState pgs = gs.getPhysicalGameState();
+        List<Unit> freeWorker = new LinkedList<>();
 
+        List<Unit> harvestWorker = new LinkedList<>();
+        baseBehavior(p, gs);
+        for (Unit u : pgs.getUnits()) {
+            if (u.getType().canHarvest && u.getPlayer() == p.getID()) {
+                freeWorker.add(u);
+            }
+        }
+        while (harvestWorker.size() < 1) {
+            if (!freeWorker.isEmpty())
+                harvestWorker.add(freeWorker.remove(0));
+            else
+                break;
+        }
+
+        int number = 0;
+        Unit base = null;
+        for (Unit u : pgs.getUnits()) {
+            if (u.getType() == baseType && u.getPlayer() == p.getID()) {
+                base = u;
+            }
+        }
+
+        if (base == null) {
+//            System.out.println("我方输了");
+            return;
+        }
+
+        for (Unit u : pgs.getUnits()) {
+            assert base != null;
+            if (u.getType() == resourceType &&
+                    (Math.abs(u.getX() - base.getX()) + Math.abs(u.getY() - base.getY())) <= 5) {
+                number++;
+            }
+        }
+        if (number == 0)
+            flag = true; //基地附近没有资源标志
+
+        if (!flag) { //有资源
+            for (Unit u : freeWorker) {
+                meleeBehavior(u, p, gs);
+            }
+            harvestWorkerGroup(harvestWorker, p, gs);
+        } else {  //无资源
+            for (Unit u : pgs.getUnits()) {
+                if (u.getType().canAttack && p.getID() == u.getPlayer()) {
+                    if (u.getResources() > 0)
+                        harvest(u, u, base);
+                    else {
+                        meleeBehavior(u, p, gs);
+                    }
+                }
+
+            }
+        }
+    }
     //-----------------------------------策略二----------------------------------
 
     /**
@@ -437,14 +507,15 @@ public class BoJingAI extends AbstractionLayerAI {
      */
     public void unitsRush(Player p, GameState gs, int numWR, int numLR, int numHR, int numRR, int harvestNum, boolean f) {
         PhysicalGameState pgs = gs.getPhysicalGameState();
-        boolean lock = true; //判断地图是否死锁
-//        int minCost = Math.min(rangedType.cost,Math.min(heavyType.cost, lightType.cost));
 
         //基地行为
         int workers = countUnits(p, gs, workerType);
-        if (workers < numWR + harvestNum)
-            baseBehavior(p, gs);
-        //基地行为
+        int nbases = countUnits(p, gs, baseType);
+        int barracks = countUnits(p, gs, barracksType);
+
+        if(workers < numWR + harvestNum)
+            baseBehavior(p,gs);
+
         //获取敌方基地距离
         int baseDistance = Integer.MAX_VALUE;
         List<Unit> myBases = new ArrayList<>();
@@ -460,51 +531,39 @@ public class BoJingAI extends AbstractionLayerAI {
                 }
             }
         }
-        //一般都是一个基地
-        for (Unit mybase : myBases) {
-            for (Unit enemyBase : enemyBases) {
-                baseDistance = Math.min(baseDistance, Math.abs(mybase.getX() - enemyBase.getX()) + Math.abs(mybase.getY() - enemyBase.getY()));
-            }
-        }
 
 
-//        for(Unit worker : pgs.getUnits()){
-//            if(worker.getType()==workerType && worker.getPlayer() == p.getID() ) {
-//                UnitActionAssignment uaa = gs.getActionAssignment(worker);
-//                if (uaa != null ) {
-//                    System.out.println("--------------工兵任务是=================");
-//                    System.out.println(uaa.action.getType());
-//                }
-//
-//
-//            }
-//        }
-
-        //------------------------以下是工兵行为-------------------------------------
         //所有工兵数量
         List<Unit> freeWorkers = countUnitsList(p, gs, workerType);
         List<Unit> harvestWorkers = new LinkedList<>();
-        int nbases = countUnits(p, gs, baseType);
-        int barracks = countUnits(p, gs, barracksType);
+
+
 
         if (freeWorkers.isEmpty()) {
             return;
         }
+        while(!freeWorkers.isEmpty() && harvestWorkers.size() < harvestNum){
+            harvestWorkers.add(freeWorkers.remove(0));
+        }
 
         List<Integer> reservedPositions = new LinkedList<Integer>();
-
-
-        int barrlocationX = 0;
-        int barrlocationY = 0;
-
-
+        int locationX = 0;
+        int locationY = 0;
 
 
         //建基地   注意:行为不能覆盖，不能两次获取列表（可以改变行为），可以获取个数
         if (nbases == 0) {
             if (p.getResources() >= baseType.cost && !freeWorkers.isEmpty()) {
-                Unit u = freeWorkers.remove(0);
-                buildIfNotAlreadyBuilding(u, baseType, u.getX(), u.getY(), reservedPositions, p, pgs);
+                Unit u = null;
+                for(Unit unit : freeWorkers) {
+                    if(unit!=null && gs.getActionAssignment(unit) == null) {
+                        freeWorkers.remove(unit);
+                        u = unit;
+                        break;
+                    }
+                }
+                if(u != null)
+                    buildIfNotAlreadyBuilding(u, baseType, u.getX(), u.getY(), reservedPositions, p, pgs);
             }
         }
 
@@ -512,81 +571,27 @@ public class BoJingAI extends AbstractionLayerAI {
         if (barracks == 0) {
             if (p.getResources() >= barracksType.cost && !freeWorkers.isEmpty()) {
                 Unit u = freeWorkers.remove(0);
-                if(base != null) {
-                    if(p.getID() == 0 && base.getX() + 1 <= pgs.getWidth() && base.getY() - 1 >= 0 && gs.free(base.getX()+1, base.getY() - 1))
-                    {
-                        barrlocationX = base.getX() + 1;
-                        barrlocationY = base.getY() - 1;
-                    } else if(p.getID() == 0 && base.getX() + 1 <= pgs.getWidth() && base.getY() + 1 <= pgs.getHeight() && gs.free(base.getX()+1, base.getY() +1)){
-                        barrlocationX = base.getX() + 1;
-                        barrlocationY = base.getY() + 1;
-                    } else if(p.getID() == 0 && base.getX() - 1 >= 0 && base.getY() - 1 >= 0 && gs.free(base.getX()-1, base.getY() - 1)) {
-                        barrlocationX = base.getX() - 1;
-                        barrlocationY = base.getY() - 1;
-                    }else if(p.getID() == 0 && base.getX()  - 1 >= 0 && base.getY() +1 <= pgs.getHeight() && gs.free(base.getX()-1, base.getY() + 1)){
-                        barrlocationX = base.getX() - 1;
-                        barrlocationY = base.getY() + 1;
-                    }else{
-                        barrlocationX = u.getX();
-                        barrlocationY = u.getY();
+                if (base != null && u!=null) {
+//                    System.out.println("基地位置" + base.getX() + ", " + base.getY());
+                    locationX = base.getX();
+                    locationY = base.getY();
+                    if(p.getID() == 0){
+                        locationX += 2;
+                        locationY += 2;
                     }
-
-                    if(p.getID() == 1 && base.getX()  + 1 <= pgs.getWidth() && base.getY() -1 >=0  && gs.free(base.getX()+ 1, base.getY() - 1)){
-                        barrlocationX = base.getX() - 1;
-                        barrlocationY = base.getY() + 1;
-                    }
-                    else if(p.getID() == 1 && base.getX() - 1 <= 0 && base.getY() + 1 >= pgs.getHeight() && gs.free(base.getX() - 1, base.getY() + 1))
-                    {
-                        barrlocationX = base.getX() - 1;
-                        barrlocationY = base.getY() + 1;
-                    } else if(p.getID() == 1 && base.getX() - 1 >= 0 && base.getY() - 1 >=0 && gs.free(base.getX()-1, base.getY() -1)){
-                        barrlocationX = base.getX() - 1;
-                        barrlocationY = base.getY() - 1;
-                    } else if(p.getID() == 1 && base.getX() + 1 <= pgs.getWidth() && base.getY() + 1 <= pgs.getHeight() && gs.free(base.getX()+1, base.getY() + 1)) {
-                        barrlocationX = base.getX() +1;
-                        barrlocationY = base.getY() + 1;
-                    }else{
-                        barrlocationX = u.getX();
-                        barrlocationY = u.getY();
-                    }
-                    System.out.println(barrlocationX +  " " + barrlocationY);
-                    move(u,barrlocationX,barrlocationY);
-                    if(actions.get(u).completed(gs)) {
-                        buildIfNotAlreadyBuilding(u, barracksType, barrlocationX, barrlocationY, reservedPositions, p, pgs);
-                        System.out.println(u.getX() + " 移动位置" + u.getY());
-                    }
+                    buildIfNotAlreadyBuilding(u, barracksType, locationX, locationY, reservedPositions, p, pgs);
                 }
             }
         }
 
-        //worker任务分类
-        for (Unit u : freeWorkers) {
-            if (harvestWorkers.size() >= harvestNum) {
-                meleeBehavior(u, p, gs);
-            } else
-                harvestWorkers.add(u);
-        }
+
 
         harvestWorkerGroup(harvestWorkers, p, gs);
+
+        for (Unit u : freeWorkers) {
+                meleeBehavior(u, p, gs);
+        }
         //-------------------------以上是工兵行为---------------------------------------
-
-
-        //工兵都处于等待状态则发生死锁,只要有一个工兵在运动，则死锁解除
-        for (Unit worker : pgs.getUnits()) {
-            if (worker.getPlayer() == p.getID() && worker.getType() == workerType) {
-                UnitActionAssignment uaa = gs.getActionAssignment(worker);
-                if (uaa != null && uaa.action.getType() != UnitAction.TYPE_NONE) {
-                    lock = false;
-//                    System.out.println("Unlock");
-                    break;
-                }
-            }
-        }
-
-        if (lock) {
-            TIME++;
-            lock = TIME % anInt == anInt - 1;
-        }
 
         //-------------------------兵营行为-------------------------------------
         //获取当前各种的总数量
@@ -612,7 +617,6 @@ public class BoJingAI extends AbstractionLayerAI {
                 barracksBehavior(p, gs, heavyType);
             else
                 barracksBehavior(p, gs, lightType);
-
         }
         //-------------------------兵营行为结束-----------------------------------
 
@@ -623,46 +627,27 @@ public class BoJingAI extends AbstractionLayerAI {
         numL = countUnits(p, gs, lightType);
         numR = countUnits(p, gs, rangedType);
         numH = countUnits(p, gs, heavyType);
-        total = numL + numR + numH;
-        //判断有无矿
         int resource = 0;
         for (Unit u : pgs.getUnits()) {
             if (u.getType() == resourceType) {
                 resource++;
             }
         }
-        System.out.println(gs.getTime());
-        //策略先积累兵力
-        //地图资源无矿则全部进攻
+
         if (resource == 0) {
             for (Unit u : pgs.getUnits()) {
                 if (u.getType().canAttack && u.getPlayer() == p.getID()) {
-                    //非工兵
                     if (!u.getType().canHarvest) {
                         meleeCloseBehavior(u, p, gs);
-                    }
-                    //工兵把资源放进基地在进攻
-                    else {
+                    } else {
                         harvestWorkerBehavior(u, p, gs);
                     }
                 }
             }
-        }
-
-        //死锁或者积累兵够了,或者对面基地很近就进攻，除工兵以外都进攻(flag为进攻信号)，只要进攻了就一直进攻
-        else if (total >= (numRR + numLR + numHR) || f || flag || (DEFENSEDIS > baseDistance / 2) || (p.getResources() < lightType.cost && pgs.getHeight() > 128)) {
-            flag = true;
+        } else {
             for (Unit u : pgs.getUnits()) {
                 if (u.getType().canAttack && !u.getType().canHarvest && u.getPlayer() == p.getID())
                     meleeCloseBehavior(u, p, gs);
-            }
-        } else {
-            if (lock)
-                DEFENSEDIS++;
-            for (Unit u : pgs.getUnits()) {
-                if (u.getType().canAttack && !u.getType().canHarvest && u.getPlayer() == p.getID()) {
-                    defenseBehavior(u, p, gs);
-                }
             }
         }
         //-----------------------------除工兵以外的兵种行为结束------------------------------------
@@ -710,9 +695,9 @@ public class BoJingAI extends AbstractionLayerAI {
 
         //身边的距离
         int closestDistance = 0;
-        int lightAttackarea =  lightType.attackRange + 3;
-        int heavyAttackarea =  lightType.attackRange + 1;
-        int rangedAttackarea = lightType.attackRange + 5;
+        int lightAttackarea = lightType.attackRange + 2;
+        int heavyAttackarea = heavyType.attackRange + 2;
+        int rangedAttackarea = rangedType.attackRange + 2;
 
 
         int mybase = 0;
@@ -734,21 +719,19 @@ public class BoJingAI extends AbstractionLayerAI {
             } else {
                 attack(u, null);
             }
-        }
-        else if(u.getType() == lightType){
+        } else if (u.getType() == lightType) {
             if (closestEnemy != null && (closestDistance < lightAttackarea || mybase < lightseDefenseDistance)) {
                 attack(u, closestEnemy);
             } else {
                 attack(u, null);
             }
-        }
-        else if(u.getType() == rangedType){
+        } else if (u.getType() == rangedType) {
             if (closestEnemy != null && (closestDistance < rangedAttackarea || mybase < rangedDefenseDistance)) {
                 attack(u, closestEnemy);
             } else {
                 attack(u, null);
             }
-        } else{
+        } else {
             if (closestEnemy != null && (closestDistance < 2 || mybase < 5)) {
                 attack(u, closestEnemy);
             } else {
@@ -759,32 +742,6 @@ public class BoJingAI extends AbstractionLayerAI {
 
     }
 
-
-    public void meleeCloseGroup(List<Unit> group, Player p, GameState gs) {
-        PhysicalGameState pgs = gs.getPhysicalGameState();
-        Unit closestEnemy = null;
-        int closestDistance = 0;
-
-        for (Unit u : group) {
-            if (u != null) {
-                for (Unit u2 : pgs.getUnits()) {
-                    if (u2.getPlayer() >= 0 && u2.getPlayer() != p.getID()) {
-                        int d = Math.abs(u2.getX() - u.getX()) + Math.abs(u2.getY() - u.getY());
-                        //攻击非基地目标
-                        if ((closestEnemy == null || d < closestDistance)) {
-                            closestEnemy = u2;
-                            closestDistance = d;
-                        }
-                    }
-                }
-                if (closestEnemy != null) {
-                    attack(u, closestEnemy);
-                } else {
-                    attack(u, null);
-                }
-            }
-        }
-    }
 
     public void meleeCloseBehavior(Unit u, Player p, GameState gs) {
         PhysicalGameState pgs = gs.getPhysicalGameState();

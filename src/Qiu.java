@@ -1,5 +1,3 @@
-package MyRTS;
-
 /**
  * @Description TODO
  * @Author Jianhai Wang
